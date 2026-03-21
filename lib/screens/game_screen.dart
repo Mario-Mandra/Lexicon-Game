@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/game_settings.dart';
 import '../models/game_models.dart';
@@ -22,6 +23,8 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   GamePhase _phase = GamePhase.handoff;
+  bool _isWordsLoading = true;
+  bool _isProcessingTransaction = false; 
   
   late List<Team> _playOrder;
   int _currentTeamIndex = 0;
@@ -37,29 +40,64 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     _playOrder = List.from(widget.teams)..shuffle();
-    _loadWords();
+    _initGameData();
+  }
+
+  Future<void> _initGameData() async {
+    await _loadWords();
+    if (mounted) {
+      setState(() {
+        _isWordsLoading = false;
+      });
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    // Reset ad session on exit/dismissal
+    widget.settings.adSessionActive = false; 
     super.dispose();
   }
 
-  void _loadWords() {
-    final selectedPack = availableWordPacks.firstWhere(
-      (pack) => pack.id == widget.settings.selectedPackId,
-      orElse: () => availableWordPacks.first,
-    );
-    List<String> wordsToLoad = selectedPack.localizedWords[widget.settings.language] ?? selectedPack.localizedWords['en']!;
-    _currentWordDeck = List.from(wordsToLoad)..shuffle();
+  Future<void> _loadWords() async {
+    if (widget.settings.selectedPackId == 'custom') {
+      final prefs = await SharedPreferences.getInstance();
+      List<String> savedWords = prefs.getStringList('custom_pack_words') ?? [];
+      
+      if (savedWords.isEmpty) {
+        _currentWordDeck = ["Add words in settings!", "Custom pack empty"];
+      } else {
+        _currentWordDeck = List.from(savedWords)..shuffle();
+      }
+    } else {
+      final selectedPack = availableWordPacks.firstWhere(
+        (pack) => pack.id == widget.settings.selectedPackId,
+        orElse: () => availableWordPacks.first,
+      );
+      List<String> wordsToLoad = selectedPack.localizedWords[widget.settings.language] 
+          ?? selectedPack.localizedWords['en'] 
+          ?? [];
+      _currentWordDeck = List.from(wordsToLoad)..shuffle();
+    }
+    
+    if (_currentWord.isEmpty && _currentWordDeck.isNotEmpty) {
+      _nextWord();
+    }
   }
 
   void _nextWord() {
-    if (_currentWordDeck.isEmpty) _loadWords();
-    setState(() {
-      _currentWord = _currentWordDeck.removeLast();
-    });
+    if (_currentWordDeck.isEmpty) {
+      _loadWords().then((_) {
+        if (mounted && _currentWordDeck.isNotEmpty) {
+           setState(() => _currentWord = _currentWordDeck.removeLast());
+        }
+      });
+    } else {
+      setState(() {
+        _currentWord = _currentWordDeck.removeLast();
+      });
+    }
   }
 
   void _startTurn() {
@@ -94,11 +132,11 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {
       _playOrder[_currentTeamIndex].score += points;
       
-      // INSTANT VICTORY CHECK:
-      // The moment a team hits or exceeds the target, we kill the timer and end the game.
       if (_playOrder[_currentTeamIndex].score >= widget.settings.targetScore) {
         _timer?.cancel();
         _phase = GamePhase.victory;
+        // Expire the ad session on victory
+        widget.settings.adSessionActive = false; 
       }
     });
 
@@ -110,9 +148,7 @@ class _GameScreenState extends State<GameScreen> {
   void _endTurn() {
     _timer?.cancel();
     HapticFeedback.vibrate(); 
-    
     setState(() {
-      // If no one won during the active turn, just go to the leaderboard
       _phase = GamePhase.leaderboard;
     });
   }
@@ -142,8 +178,99 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  // --- PRODUCTION STUBS FOR VICTORY REPLAYS ---
+
+  Future<void> _processAdRewardReplay() async {
+    setState(() => _isProcessingTransaction = true);
+    try {
+      await Future.delayed(const Duration(seconds: 2)); 
+      throw Exception("Ad SDK not found");
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessingTransaction = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Reward failed: Ad service unavailable.', style: TextStyle(fontWeight: FontWeight.bold)), 
+            backgroundColor: Colors.redAccent
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _processPurchaseReplay() async {
+    setState(() => _isProcessingTransaction = true);
+    try {
+      await Future.delayed(const Duration(seconds: 2)); 
+      throw Exception("Billing failed");
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessingTransaction = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Purchase failed: Service unavailable.', style: TextStyle(fontWeight: FontWeight.bold)), 
+            backgroundColor: Colors.redAccent
+          ),
+        );
+      }
+    }
+  }
+
+  // --- UI BUILDER ---
+
   @override
   Widget build(BuildContext context) {
+    if (_isWordsLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final theme = Theme.of(context);
+
+    return Stack(
+      children: [
+        _buildMainContent(),
+        
+        // --- THE NEW POLISHED CONNECTING OVERLAY ---
+        if (_isProcessingTransaction)
+          Container(
+            color: Colors.black.withAlpha(200), // Nice dark blur effect
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 40),
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A1A),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: theme.colorScheme.primary.withAlpha(80), width: 2),
+                  boxShadow: [
+                    BoxShadow(color: theme.colorScheme.primary.withAlpha(20), blurRadius: 40, spreadRadius: 5)
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: theme.colorScheme.primary, strokeWidth: 3),
+                    const SizedBox(height: 24),
+                    Text(
+                      "CONNECTING", 
+                      style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 4)
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "Securely contacting servers...", 
+                      style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 1),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMainContent() {
     switch (_phase) {
       case GamePhase.handoff: return _buildHandoffScreen();
       case GamePhase.playing: return _buildPlayingScreen();
@@ -151,8 +278,6 @@ class _GameScreenState extends State<GameScreen> {
       case GamePhase.victory: return _buildVictoryScreen(); 
     }
   }
-
-  // --- UI COMPONENTS ---
 
   Widget _buildHandoffScreen() {
     final team = _playOrder[_currentTeamIndex];
@@ -237,6 +362,8 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildVictoryScreen() {
     final winner = (List<Team>.from(_playOrder)..sort((a, b) => b.score.compareTo(a.score))).first;
     final theme = Theme.of(context);
+    final currentPack = availableWordPacks.firstWhere((p) => p.id == widget.settings.selectedPackId);
+    final bool hasAccess = !currentPack.effectivelyLocked(widget.settings);
 
     return Scaffold(
       body: Padding(
@@ -245,13 +372,23 @@ class _GameScreenState extends State<GameScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.emoji_events_rounded, size: 120, color: Colors.amber),
+            const Icon(Icons.emoji_events_rounded, size: 100, color: Colors.amber),
+            const SizedBox(height: 10),
+            const Text('CHAMPIONS', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, letterSpacing: 8, color: Colors.white38)),
+            Text(winner.name.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.white)),
+            const SizedBox(height: 40),
+
+            if (hasAccess) ...[
+              _actionButton("PLAY AGAIN", _resetGameSamePlayers, theme.colorScheme.primary),
+            ] else ...[
+              const Text("SESSION EXPIRED", textAlign: TextAlign.center, style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 2)),
+              const SizedBox(height: 16),
+              _actionButton("WATCH AD TO REPLAY", _processAdRewardReplay, Colors.white10),
+              const SizedBox(height: 12),
+              _actionButton("BUY PACK \$0.99", _processPurchaseReplay, theme.colorScheme.primary.withAlpha(40)),
+            ],
+
             const SizedBox(height: 20),
-            const Text('CHAMPIONS', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, letterSpacing: 8, color: Colors.white38)),
-            Text(winner.name.toUpperCase(), textAlign: TextAlign.center, style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: Colors.white)),
-            const SizedBox(height: 60),
-            _actionButton("PLAY AGAIN", _resetGameSamePlayers, theme.colorScheme.primary),
-            const SizedBox(height: 12),
             TextButton(
               onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
               child: const Text('EXIT TO MAIN MENU', style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold)),
@@ -262,103 +399,38 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  // --- REUSABLE COMPONENTS ---
+  // --- HELPERS ---
 
   Widget _actionButton(String label, VoidCallback onPressed, Color color) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 22),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 8,
+        backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0,
       ),
-      child: Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2)),
+      child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
     );
   }
 
   Widget _teamCard(Team team, Player e, Player g, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: theme.colorScheme.primary.withAlpha(80), width: 2),
-      ),
-      child: Column(
-        children: [
-          Text(team.name.toUpperCase(), style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 4)),
-          const Divider(height: 40, color: Colors.white10),
-          const Text('DESCRIBING', style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 2)),
-          Text(e.name, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 20),
-          const Text('GUESSING', style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 2)),
-          Text(g.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: Colors.white70)),
-        ],
-      ),
+      decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(32), border: Border.all(color: theme.colorScheme.primary.withAlpha(80), width: 2)),
+      child: Column(children: [Text(team.name.toUpperCase(), style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 4)), const Divider(height: 40, color: Colors.white10), const Text('DESCRIBING', style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 2)), Text(e.name, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)), const SizedBox(height: 20), const Text('GUESSING', style: TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 2)), Text(g.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: Colors.white70))]),
     );
   }
 
   Widget _gameHeader(Team team, bool panic, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('${team.name}: ${team.score}', style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 20)),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            decoration: BoxDecoration(color: panic ? Colors.red.withAlpha(40) : Colors.white10, borderRadius: BorderRadius.circular(20)),
-            child: Text('$_timeLeft', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: panic ? Colors.red : Colors.white)),
-          ),
-        ],
-      ),
-    );
+    return Padding(padding: const EdgeInsets.all(24.0), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('${team.name}: ${team.score}', style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 20)), Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), decoration: BoxDecoration(color: panic ? Colors.red.withAlpha(40) : Colors.white10, borderRadius: BorderRadius.circular(20)), child: Text('$_timeLeft', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: panic ? Colors.red : Colors.white)))]));
   }
 
   Widget _wordCard(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Dismissible(
-        key: ValueKey(_currentWord),
-        onDismissed: (dir) {
-          _scoreWord(dir == DismissDirection.startToEnd ? 1 : -1);
-        },
-        background: _swipeBg(Colors.green, Icons.check, Alignment.centerLeft),
-        secondaryBackground: _swipeBg(Colors.red, Icons.close, Alignment.centerRight),
-        child: Container(
-          height: 300, width: double.infinity,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A), 
-            borderRadius: BorderRadius.circular(32), 
-            border: Border.all(color: theme.colorScheme.primary.withAlpha(100), width: 2)
-          ),
-          child: Center(child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: FittedBox(child: Text(_currentWord, style: const TextStyle(fontSize: 80, fontWeight: FontWeight.w900, color: Colors.white))),
-          )),
-        ),
-      ),
-    );
+    return Padding(padding: const EdgeInsets.symmetric(horizontal: 24.0), child: Dismissible(key: ValueKey(_currentWord), onDismissed: (dir) => _scoreWord(dir == DismissDirection.startToEnd ? 1 : -1), background: _swipeBg(Colors.green, Icons.check, Alignment.centerLeft), secondaryBackground: _swipeBg(Colors.red, Icons.close, Alignment.centerRight), child: Container(height: 300, width: double.infinity, decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(32), border: Border.all(color: theme.colorScheme.primary.withAlpha(100), width: 2)), child: Center(child: Padding(padding: const EdgeInsets.all(20.0), child: FittedBox(child: Text(_currentWord, style: const TextStyle(fontSize: 80, fontWeight: FontWeight.w900, color: Colors.white))))))));
   }
 
-  Widget _swipeBg(Color c, IconData i, Alignment a) => Container(
-    alignment: a, padding: const EdgeInsets.symmetric(horizontal: 40),
-    decoration: BoxDecoration(color: c.withAlpha(40), borderRadius: BorderRadius.circular(32)),
-    child: Icon(i, color: c, size: 60),
-  );
+  Widget _swipeBg(Color c, IconData i, Alignment a) => Container(alignment: a, padding: const EdgeInsets.symmetric(horizontal: 40), decoration: BoxDecoration(color: c.withAlpha(40), borderRadius: BorderRadius.circular(32)), child: Icon(i, color: c, size: 60));
 
   Widget _leaderboardTile(Team t, bool first, ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: first ? theme.colorScheme.primary.withAlpha(20) : Colors.white.withAlpha(5), 
-        borderRadius: BorderRadius.circular(16), 
-        border: first ? Border.all(color: theme.colorScheme.primary) : null
-      ),
-      child: Row(children: [Text(t.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), const Spacer(), Text('${t.score}', style: TextStyle(fontWeight: FontWeight.w900, color: first ? theme.colorScheme.primary : Colors.white))]),
-    );
+    return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: first ? theme.colorScheme.primary.withAlpha(20) : Colors.white.withAlpha(5), borderRadius: BorderRadius.circular(16), border: first ? Border.all(color: theme.colorScheme.primary) : null), child: Row(children: [Text(t.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), const Spacer(), Text('${t.score}', style: TextStyle(fontWeight: FontWeight.w900, color: first ? theme.colorScheme.primary : Colors.white))]));
   }
 }

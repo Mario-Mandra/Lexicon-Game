@@ -2,11 +2,25 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
+import '../models/game_settings.dart'; 
 import 'rules_screen.dart';
 import 'game_setup_screen.dart';
 
-class MainMenuScreen extends StatelessWidget {
+class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
+
+  @override
+  State<MainMenuScreen> createState() => _MainMenuScreenState();
+}
+
+class _MainMenuScreenState extends State<MainMenuScreen> {
+  // This is the single "Source of Truth" for the whole app session
+  final GameSettings _settings = GameSettings();
+
+  // This function forces the MainMenu and its children to see new data
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,12 +35,11 @@ class MainMenuScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              // --- THE NEW LEGALLY DISTINCT BRANDING ---
               Text(
                 'LEXICON',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 56, // Slightly smaller to fit the longer word perfectly
+                  fontSize: 56,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 12,
                   color: Colors.white,
@@ -50,10 +63,16 @@ class MainMenuScreen extends StatelessWidget {
                 isPrimary: true, 
                 onTap: () {
                   HapticFeedback.lightImpact(); 
+                  
+                  // THE BUG WAS HERE: I was forcing _settings.adSessionActive = false; 
+                  // That wiped out your 10001 cheat code immediately. It is now removed.
+
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const GameSetupScreen()),
-                  );
+                    MaterialPageRoute(
+                      builder: (context) => GameSetupScreen(settings: _settings),
+                    ),
+                  ).then((_) => _refresh()); // Refresh when coming back
                 },
               ),
               const SizedBox(height: 16), 
@@ -67,7 +86,12 @@ class MainMenuScreen extends StatelessWidget {
                   HapticFeedback.lightImpact();
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const RulesScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => RulesScreen(
+                        settings: _settings,
+                        onUpdate: _refresh, 
+                      ),
+                    ),
                   );
                 },
               ),
@@ -115,9 +139,6 @@ class MenuIsland extends StatelessWidget {
           border: isPrimary 
               ? Border.all(color: theme.colorScheme.primary.withAlpha(150), width: 2)
               : Border.all(color: theme.colorScheme.primary.withAlpha(20), width: 1),
-          boxShadow: isPrimary 
-              ? [BoxShadow(color: theme.colorScheme.primary.withAlpha(30), blurRadius: 20, spreadRadius: 2)]
-              : [],
         ),
         child: Row(
           children: [
@@ -127,7 +148,7 @@ class MenuIsland extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1, color: isPrimary ? theme.colorScheme.primary : Colors.white)),
+                  Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isPrimary ? theme.colorScheme.primary : Colors.white)),
                   const SizedBox(height: 4),
                   Text(subtitle, style: const TextStyle(fontSize: 14, color: Colors.white54)),
                 ],
