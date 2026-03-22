@@ -1,8 +1,8 @@
 // File: lib/data/word_bank.dart
 import 'package:flutter/material.dart';
 import 'packs/generic.dart';
-import 'packs/after_dark.dart';
 import 'packs/pop_culture.dart';
+import 'packs/celebrities.dart'; 
 
 class WordPack {
   final String id;
@@ -12,12 +12,16 @@ class WordPack {
   final Map<String, List<String>> localizedWords; 
 
   const WordPack({
-    required this.id, required this.title, required this.subtitle, 
-    required this.icon, required this.localizedWords,
+    required this.id, 
+    required this.title, 
+    required this.subtitle, 
+    required this.icon, 
+    required this.localizedWords,
   });
 }
 
-const List<WordPack> availableWordPacks = [
+// Removing 'const' from the list allows it to handle the imported maps safely
+final List<WordPack> availableWordPacks = [
   WordPack(
     id: 'generic',
     title: 'Generic',
@@ -33,11 +37,11 @@ const List<WordPack> availableWordPacks = [
     localizedWords: popCultureWords, 
   ),
   WordPack(
-    id: 'after_dark',
-    title: 'After Dark',
-    subtitle: 'For when you play after sun down',
-    icon: Icons.nightlight_round,
-    localizedWords: afterDarkWords, 
+    id: 'celebrities',
+    title: 'Celebrities',
+    subtitle: 'Famous people from around the world.',
+    icon: Icons.star_rounded,
+    localizedWords: celebritiesWords, 
   ),
 ];
 
