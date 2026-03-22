@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0' # This forces modern Null Safety
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -13,11 +13,13 @@ dependencies:
   google_fonts: ^8.0.2
   audioplayers: ^6.6.0
   shared_preferences: ^2.3.5
+  google_mobile_ads: ^5.1.0
+  purchases_flutter: ^8.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
 flutter:
   uses-material-design: true
-

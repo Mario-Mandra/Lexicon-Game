@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import '../models/game_settings.dart';
 import '../data/word_bank.dart';
 import 'team_setup_screen.dart'; 
@@ -19,33 +21,129 @@ class GameSetupScreen extends StatefulWidget {
 class _GameSetupScreenState extends State<GameSetupScreen> {
   bool _isProcessing = false;
 
-  Future<void> _processAd() async {
-    setState(() => _isProcessing = true);
-    await Future.delayed(const Duration(seconds: 2));
-    
-    if (mounted) {
-      setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ad failed to load. Please try again later.', style: TextStyle(fontWeight: FontWeight.bold)),
-          backgroundColor: Colors.redAccent,
-        )
-      );
-    }
+  RewardedAd? _rewardedAd;
+  bool _isAdLoading = false; 
+  final String _testAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewardedAd();
+    widget.settings.syncPurchases().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
-  Future<void> _processPurchase() async {
-    setState(() => _isProcessing = true);
-    await Future.delayed(const Duration(seconds: 2));
-    
-    if (mounted) {
-      setState(() => _isProcessing = false);
+  void _loadRewardedAd() {
+    if (_isAdLoading) return; 
+    _isAdLoading = true;
+
+    RewardedAd.load(
+      adUnitId: _testAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _isAdLoading = false; 
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) {
+              _rewardedAd = null; 
+            },
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              _loadRewardedAd(); 
+              if (mounted) setState(() => _isProcessing = false);
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              ad.dispose();
+              if (mounted) setState(() => _isProcessing = false);
+              _loadRewardedAd(); 
+            },
+          );
+          setState(() {
+            _rewardedAd = ad;
+          });
+        },
+        onAdFailedToLoad: (err) {
+          _isAdLoading = false; 
+          _rewardedAd = null;
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _rewardedAd?.dispose();
+    super.dispose();
+  }
+
+  void _processAd() {
+    if (_rewardedAd == null) {
+      if (!_isAdLoading) {
+        _loadRewardedAd();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Purchase failed: Service unavailable.', style: TextStyle(fontWeight: FontWeight.bold)),
-          backgroundColor: Colors.redAccent,
-        )
+          content: Text('Fetching ad from server. Please wait a moment and tap again.', style: TextStyle(fontWeight: FontWeight.bold)), 
+          backgroundColor: Colors.amber,
+          duration: Duration(seconds: 2),
+        ),
       );
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+
+    _rewardedAd!.show(
+      onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
+        if (mounted) {
+          setState(() {
+            widget.settings.adSessionActive = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ad Completed! Pack unlocked for this session.', style: TextStyle(fontWeight: FontWeight.bold))),
+          );
+        }
+      }
+    );
+  }
+
+  Future<void> _processPurchase(String packId) async {
+    setState(() => _isProcessing = true);
+    try {
+      // 1. Fetch the actual Store Product object
+      final products = await Purchases.getProducts([packId]);
+      if (products.isEmpty) throw Exception("Product not found");
+
+      // 2. Trigger the modern native purchase flow
+      await Purchases.purchaseStoreProduct(products.first);
+      
+      // 3. Sync
+      await widget.settings.syncPurchases();
+      
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Purchase Successful!', style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.green),
+        );
+      }
+    } on PlatformException catch (e) {
+      var errorCode = PurchasesErrorHelper.getErrorCode(e);
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        if (errorCode != PurchasesErrorCode.purchaseCancelledError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Store unavailable right now.', style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Store unavailable.'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -86,7 +184,6 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // FOOTER
                 if (!isLocked)
                   _lobbyButton(theme)
                 else
@@ -94,8 +191,33 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
               ],
             ),
           ),
+          
           if (_isProcessing)
-            Container(color: Colors.black.withAlpha(200), child: const Center(child: CircularProgressIndicator(color: Color(0xFFFF00FF)))),
+            Container(
+              color: Colors.black.withAlpha(200),
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 40),
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: theme.colorScheme.primary.withAlpha(80), width: 2),
+                    boxShadow: [BoxShadow(color: theme.colorScheme.primary.withAlpha(20), blurRadius: 40, spreadRadius: 5)],
+                  ),
+                  child: Column(
+                     mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: theme.colorScheme.primary, strokeWidth: 3),
+                      const SizedBox(height: 24),
+                      Text("CONNECTING", style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 4)),
+                      const SizedBox(height: 8),
+                      const Text("Securely contacting servers...", style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 1), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -171,11 +293,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   }
 
   Widget _transactionButtons(ThemeData theme, String packId) {
-    // If it's the custom pack, it shouldn't show these anyway based on word_bank logic, 
-    // but we can add an extra safety check here.
-    final bool isCustom = packId == 'custom';
-
-    if (isCustom) {
+    if (packId == 'custom') {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(color: Colors.amber.withAlpha(20), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.amber.withAlpha(50))),
@@ -187,7 +305,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
       children: [
         Expanded(child: _footerAction("WATCH AD", Icons.play_circle_outline, Colors.white10, _processAd)),
         const SizedBox(width: 12),
-        Expanded(child: _footerAction("BUY \$0.99", Icons.shopping_bag_outlined, theme.colorScheme.primary.withAlpha(40), _processPurchase)),
+        Expanded(child: _footerAction("BUY \$0.99", Icons.shopping_bag_outlined, theme.colorScheme.primary.withAlpha(40), () => _processPurchase(packId))),
       ],
     );
   }

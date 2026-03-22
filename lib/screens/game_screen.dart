@@ -3,6 +3,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/game_settings.dart';
@@ -36,11 +38,53 @@ class _GameScreenState extends State<GameScreen> {
   List<String> _currentWordDeck = [];
   String _currentWord = '';
 
+  RewardedAd? _rewardedAd;
+  bool _isAdLoading = false; 
+  final String _testAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
+
   @override
   void initState() {
     super.initState();
     _playOrder = List.from(widget.teams)..shuffle();
     _initGameData();
+    _loadRewardedAd(); 
+  }
+
+  void _loadRewardedAd() {
+    if (_isAdLoading) return;
+    _isAdLoading = true;
+
+    RewardedAd.load(
+      adUnitId: _testAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _isAdLoading = false; 
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) {
+              _rewardedAd = null;
+            },
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              _loadRewardedAd(); 
+              if (mounted) setState(() => _isProcessingTransaction = false);
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              ad.dispose();
+              if (mounted) setState(() => _isProcessingTransaction = false);
+              _loadRewardedAd(); 
+            },
+          );
+          setState(() {
+            _rewardedAd = ad;
+          });
+        },
+        onAdFailedToLoad: (err) {
+          _isAdLoading = false; 
+          _rewardedAd = null;
+        },
+      ),
+    );
   }
 
   Future<void> _initGameData() async {
@@ -55,7 +99,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    // Reset ad session on exit/dismissal
+    _rewardedAd?.dispose();
     widget.settings.adSessionActive = false; 
     super.dispose();
   }
@@ -135,7 +179,6 @@ class _GameScreenState extends State<GameScreen> {
       if (_playOrder[_currentTeamIndex].score >= widget.settings.targetScore) {
         _timer?.cancel();
         _phase = GamePhase.victory;
-        // Expire the ad session on victory
         widget.settings.adSessionActive = false; 
       }
     });
@@ -178,45 +221,69 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  // --- PRODUCTION STUBS FOR VICTORY REPLAYS ---
+  void _processAdRewardReplay() {
+    if (_rewardedAd == null) {
+      if (!_isAdLoading) {
+        _loadRewardedAd();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Fetching ad from server. Please wait a moment and tap again.', style: TextStyle(fontWeight: FontWeight.bold)), 
+          backgroundColor: Colors.amber,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
 
-  Future<void> _processAdRewardReplay() async {
+    setState(() => _isProcessingTransaction = true);
+
+    _rewardedAd!.show(
+      onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
+        if (mounted) {
+          setState(() {
+            widget.settings.adSessionActive = true;
+          });
+          _resetGameSamePlayers(); 
+        }
+      }
+    );
+  }
+
+  Future<void> _processPurchaseReplay(String packId) async {
     setState(() => _isProcessingTransaction = true);
     try {
-      await Future.delayed(const Duration(seconds: 2)); 
-      throw Exception("Ad SDK not found");
+      final products = await Purchases.getProducts([packId]);
+      if (products.isEmpty) throw Exception("Product not found");
+
+      await Purchases.purchaseStoreProduct(products.first);
+      await widget.settings.syncPurchases();
+      
+      if (mounted) {
+        setState(() => _isProcessingTransaction = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Purchase Successful!', style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.green),
+        );
+      }
+    } on PlatformException catch (e) {
+      var errorCode = PurchasesErrorHelper.getErrorCode(e);
+      if (mounted) {
+        setState(() => _isProcessingTransaction = false);
+        if (errorCode != PurchasesErrorCode.purchaseCancelledError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Store unavailable right now.'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessingTransaction = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Reward failed: Ad service unavailable.', style: TextStyle(fontWeight: FontWeight.bold)), 
-            backgroundColor: Colors.redAccent
-          ),
+          const SnackBar(content: Text('Store unavailable.'), backgroundColor: Colors.redAccent),
         );
       }
     }
   }
-
-  Future<void> _processPurchaseReplay() async {
-    setState(() => _isProcessingTransaction = true);
-    try {
-      await Future.delayed(const Duration(seconds: 2)); 
-      throw Exception("Billing failed");
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isProcessingTransaction = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Purchase failed: Service unavailable.', style: TextStyle(fontWeight: FontWeight.bold)), 
-            backgroundColor: Colors.redAccent
-          ),
-        );
-      }
-    }
-  }
-
-  // --- UI BUILDER ---
 
   @override
   Widget build(BuildContext context) {
@@ -229,11 +296,9 @@ class _GameScreenState extends State<GameScreen> {
     return Stack(
       children: [
         _buildMainContent(),
-        
-        // --- THE NEW POLISHED CONNECTING OVERLAY ---
         if (_isProcessingTransaction)
           Container(
-            color: Colors.black.withAlpha(200), // Nice dark blur effect
+            color: Colors.black.withAlpha(200),
             child: Center(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 40),
@@ -242,25 +307,16 @@ class _GameScreenState extends State<GameScreen> {
                   color: const Color(0xFF1A1A1A),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: theme.colorScheme.primary.withAlpha(80), width: 2),
-                  boxShadow: [
-                    BoxShadow(color: theme.colorScheme.primary.withAlpha(20), blurRadius: 40, spreadRadius: 5)
-                  ],
+                  boxShadow: [BoxShadow(color: theme.colorScheme.primary.withAlpha(20), blurRadius: 40, spreadRadius: 5)],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircularProgressIndicator(color: theme.colorScheme.primary, strokeWidth: 3),
                     const SizedBox(height: 24),
-                    Text(
-                      "CONNECTING", 
-                      style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 4)
-                    ),
+                    Text("CONNECTING", style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 4)),
                     const SizedBox(height: 8),
-                    const Text(
-                      "Securely contacting servers...", 
-                      style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 1),
-                      textAlign: TextAlign.center,
-                    ),
+                    const Text("Loading...", style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 1), textAlign: TextAlign.center),
                   ],
                 ),
               ),
@@ -385,7 +441,7 @@ class _GameScreenState extends State<GameScreen> {
               const SizedBox(height: 16),
               _actionButton("WATCH AD TO REPLAY", _processAdRewardReplay, Colors.white10),
               const SizedBox(height: 12),
-              _actionButton("BUY PACK \$0.99", _processPurchaseReplay, theme.colorScheme.primary.withAlpha(40)),
+              _actionButton("BUY PACK \$0.99", () => _processPurchaseReplay(currentPack.id), theme.colorScheme.primary.withAlpha(40)),
             ],
 
             const SizedBox(height: 20),
@@ -398,8 +454,6 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
   }
-
-  // --- HELPERS ---
 
   Widget _actionButton(String label, VoidCallback onPressed, Color color) {
     return ElevatedButton(

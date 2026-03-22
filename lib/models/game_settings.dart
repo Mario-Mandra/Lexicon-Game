@@ -1,5 +1,7 @@
 // File: lib/models/game_settings.dart
 
+import 'package:purchases_flutter/purchases_flutter.dart';
+
 class GameSettings {
   int targetScore;
   int roundDurationSeconds;
@@ -9,8 +11,8 @@ class GameSettings {
   
   // Debug/Logic Flags
   bool isPremium;
-  List<String> unlockedPackIds; // Tracks individually bought packs
-  bool adSessionActive;         // Tracks if a reward ad was watched for this session
+  List<String> unlockedPackIds; 
+  bool adSessionActive;         
 
   GameSettings({
     this.targetScore = 30,
@@ -27,5 +29,29 @@ class GameSettings {
     isPremium = false;
     unlockedPackIds = [];
     adSessionActive = false;
+  }
+
+  // --- REVENUECAT PRODUCTION INTEGRATION ---
+  
+  Future<void> syncPurchases() async {
+    try {
+      CustomerInfo info = await Purchases.getCustomerInfo();
+      _updateAccessFromInfo(info);
+    } catch (e) {
+      // Fails silently if offline or not fully set up in the console yet
+    }
+  }
+
+  void _updateAccessFromInfo(CustomerInfo info) {
+    isPremium = info.entitlements.all["premium"]?.isActive == true;
+
+    List<String> unlocked = [];
+    info.entitlements.all.forEach((key, entitlement) {
+      if (entitlement.isActive && key != 'premium') {
+        unlocked.add(key);
+      }
+    });
+    
+    unlockedPackIds = unlocked;
   }
 }
