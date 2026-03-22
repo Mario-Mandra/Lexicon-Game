@@ -1,0 +1,24 @@
+name: lexicon
+description: "Lexicon - The pass and play party game."
+publish_to: 'none'
+version: 1.0.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^8.0.2
+  shared_preferences: ^2.3.5
+  google_mobile_ads: ^5.1.0
+  purchases_flutter: ^8.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
