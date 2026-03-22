@@ -7,15 +7,15 @@ import 'rules_screen.dart';
 import 'game_setup_screen.dart';
 
 class MainMenuScreen extends StatefulWidget {
-  const MainMenuScreen({super.key});
+  final GameSettings settings;
+
+  const MainMenuScreen({super.key, required this.settings});
 
   @override
   State<MainMenuScreen> createState() => _MainMenuScreenState();
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
-  final GameSettings _settings = GameSettings();
-
   void _refresh() {
     if (mounted) setState(() {});
   }
@@ -71,7 +71,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => GameSetupScreen(settings: _settings),
+                      builder: (context) =>
+                          GameSetupScreen(settings: widget.settings),
                     ),
                   ).then((_) => _refresh());
                 },
@@ -88,7 +89,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => RulesScreen(
-                        settings: _settings,
+                        settings: widget.settings,
                         onUpdate: _refresh,
                       ),
                     ),
@@ -137,8 +138,10 @@ class MenuIsland extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(24),
           border: isPrimary
-              ? Border.all(color: theme.colorScheme.primary.withAlpha(150), width: 2)
-              : Border.all(color: theme.colorScheme.primary.withAlpha(20), width: 1),
+              ? Border.all(
+                  color: theme.colorScheme.primary.withAlpha(150), width: 2)
+              : Border.all(
+                  color: theme.colorScheme.primary.withAlpha(20), width: 1),
         ),
         child: Row(
           children: [
@@ -157,18 +160,27 @@ class MenuIsland extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: isPrimary ? theme.colorScheme.primary : Colors.white,
+                      color: isPrimary
+                          ? theme.colorScheme.primary
+                          : Colors.white,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 14, color: Colors.white54),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white54,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 20),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white24,
+              size: 20,
+            ),
           ],
         ),
       ),

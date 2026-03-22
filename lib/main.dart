@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'models/game_settings.dart';
 import 'screens/main_menu_screen.dart';
 
 void main() async {
@@ -24,11 +25,18 @@ void main() async {
   // TODO: Replace with your real RevenueCat Public API Key before release
   await Purchases.configure(PurchasesConfiguration("goog_PLACEHOLDER_KEY"));
 
-  runApp(const LexiconApp());
+  // Restore purchases on every launch so premium status
+  // and purchased packs survive app restarts
+  final settings = GameSettings();
+  await settings.syncPurchases();
+
+  runApp(LexiconApp(settings: settings));
 }
 
 class LexiconApp extends StatelessWidget {
-  const LexiconApp({super.key});
+  final GameSettings settings;
+
+  const LexiconApp({super.key, required this.settings});
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +54,7 @@ class LexiconApp extends StatelessWidget {
         textTheme: GoogleFonts.rubikTextTheme(ThemeData.dark().textTheme),
         useMaterial3: true,
       ),
-      home: const MainMenuScreen(),
+      home: MainMenuScreen(settings: settings),
     );
   }
 }
