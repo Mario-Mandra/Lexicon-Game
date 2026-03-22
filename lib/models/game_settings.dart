@@ -1,6 +1,7 @@
 // File: lib/models/game_settings.dart
 
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GameSettings {
   int targetScore;
@@ -24,10 +25,21 @@ class GameSettings {
     this.adSessionActive = false,
   });
 
-  void resetAccess() {
-    isPremium = false;
-    unlockedPackIds = [];
-    adSessionActive = false;
+  // Called once at app startup in main.dart
+  // Checks local dev bypass first, then syncs with RevenueCat
+  Future<void> initializeAccess() async {
+    final prefs = await SharedPreferences.getInstance();
+    final devAccess = prefs.getBool('dev_access') ?? false;
+
+    if (devAccess) {
+      // Dev bypass is active — skip RevenueCat entirely
+      isPremium = true;
+      unlockedPackIds = ['pop_culture', 'after_dark'];
+      return;
+    }
+
+    // No dev bypass — sync with RevenueCat normally
+    await syncPurchases();
   }
 
   Future<void> syncPurchases() async {
@@ -50,5 +62,22 @@ class GameSettings {
     });
 
     unlockedPackIds = unlocked;
+  }
+
+  // Permanently grants full access — survives app restarts
+  Future<void> grantDevAccess() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dev_access', true);
+    isPremium = true;
+    unlockedPackIds = ['pop_culture', 'after_dark'];
+  }
+
+  // Revokes dev access and clears all purchased access
+  Future<void> resetAccess() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dev_access', false);
+    isPremium = false;
+    unlockedPackIds = [];
+    adSessionActive = false;
   }
 }

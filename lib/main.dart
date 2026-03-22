@@ -11,24 +11,20 @@ import 'screens/main_menu_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock orientation to portrait
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize AdMob
   await MobileAds.instance.initialize();
 
-  // Initialize RevenueCat
   await Purchases.setLogLevel(LogLevel.info);
   // TODO: Replace with your real RevenueCat Public API Key before release
   await Purchases.configure(PurchasesConfiguration("goog_PLACEHOLDER_KEY"));
 
-  // Restore purchases on every launch so premium status
-  // and purchased packs survive app restarts
+  // Initialize settings — checks dev bypass first, then RevenueCat
   final settings = GameSettings();
-  await settings.syncPurchases();
+  await settings.initializeAccess();
 
   runApp(LexiconApp(settings: settings));
 }

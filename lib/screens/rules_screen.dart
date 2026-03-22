@@ -41,7 +41,7 @@ class _RulesScreenState extends State<RulesScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final code = controller.text.trim();
               String message = 'Invalid Code';
 
@@ -52,23 +52,27 @@ class _RulesScreenState extends State<RulesScreen> {
                 widget.settings.unlockedPackIds = ['pop_culture', 'after_dark'];
                 message = 'DEBUG: All Packs Purchased.';
               } else if (code == '10003') {
-                widget.settings.isPremium = true;
-                message = 'DEBUG: Premium Membership Granted.';
+                // Permanently grants full access — persists across restarts
+                await widget.settings.grantDevAccess();
+                message = 'DEBUG: Permanent Premium Access Granted.';
               } else if (code == '10004') {
-                widget.settings.resetAccess();
+                // Revokes everything including the dev bypass
+                await widget.settings.resetAccess();
                 message = 'DEBUG: All Access Revoked.';
               }
 
               widget.onUpdate();
               HapticFeedback.heavyImpact();
-              Navigator.pop(context);
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(message),
-                  backgroundColor: const Color(0xFFFF00FF),
-                ),
-              );
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: const Color(0xFFFF00FF),
+                  ),
+                );
+              }
             },
             child: const Text(
               'EXECUTE',
