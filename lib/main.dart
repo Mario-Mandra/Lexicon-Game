@@ -18,11 +18,13 @@ void main() async {
 
   await MobileAds.instance.initialize();
 
-  await Purchases.setLogLevel(LogLevel.info);
-  // TODO: Replace with your real RevenueCat Public API Key before release
-  await Purchases.configure(PurchasesConfiguration("goog_PLACEHOLDER_KEY"));
+  // Initialize RevenueCat with your real API key
+  await Purchases.setLogLevel(LogLevel.debug);
+  await Purchases.configure(
+    PurchasesConfiguration("test_iQDJwcHgWSvoClmUiYAIRegVopq"),
+  );
 
-  // Initialize settings — checks dev bypass first, then RevenueCat
+  // Restore purchases on every launch
   final settings = GameSettings();
   await settings.initializeAccess();
 

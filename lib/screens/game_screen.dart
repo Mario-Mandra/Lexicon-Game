@@ -248,8 +248,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       });
       _victoryController.forward();
     } else {
-      // Reset swipe state BEFORE calling _nextWord so the
-      // new card renders cleanly with no leftover transform
       setState(() {
         _isAnimatingOut = false;
         _dragOffset = 0;
@@ -324,7 +322,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (_dragOffset.abs() > threshold) {
       _animateCardOut(_dragOffset > 0 ? 1 : -1);
     } else {
-      // Snap back to center
       setState(() => _dragOffset = 0);
     }
   }
@@ -388,8 +385,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       final products = await Purchases.getProducts([packId]);
       if (products.isEmpty) throw Exception('Product not found.');
 
-      await Purchases.purchaseStoreProduct(products.first);
-      await widget.settings.syncPurchases();
+      final info = await Purchases.purchaseStoreProduct(products.first);
+      
+      // Capture the immediate result, clear any dev locks, and update UI
+      widget.settings.clearDebugRevoke();
+      widget.settings.updateAccessFromInfo(info);
 
       if (mounted) {
         setState(() => _isProcessingTransaction = false);
@@ -671,7 +671,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       ),
     );
 
-    // Apply position transform
     if (_isAnimatingOut) {
       card = AnimatedBuilder(
         animation: _cardFlyController,

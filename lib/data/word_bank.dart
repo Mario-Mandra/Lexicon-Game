@@ -71,15 +71,6 @@ const List<WordPack> availableWordPacks = [
     requiresPremium: afterDarkRequiresPremium,
   ),
   WordPack(
-    id: 'custom',
-    title: 'Custom Pack',
-    subtitle: 'Create your own list of words.',
-    icon: Icons.dashboard_customize_rounded,
-    localizedWords: {'en': [], 'ro': []},
-    isLocked: true,
-    requiresPremium: true,
-  ),
-    WordPack(
     id: retroId,
     title: retroTitle,
     subtitle: retroSubtitle,
@@ -88,6 +79,16 @@ const List<WordPack> availableWordPacks = [
     isLocked: retroIsLocked,
     requiresPremium: retroRequiresPremium,
   ),
+  WordPack(
+    id: 'custom',
+    title: 'Custom Pack',
+    subtitle: 'Create your own list of words.',
+    icon: Icons.dashboard_customize_rounded,
+    localizedWords: {'en': [], 'ro': []},
+    isLocked: true,
+    requiresPremium: true,
+  ),
+    
 ];
 
 const Map<String, String> languageNames = {

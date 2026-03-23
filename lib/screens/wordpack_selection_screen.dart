@@ -116,8 +116,10 @@ class _WordpackSelectionScreenState extends State<WordpackSelectionScreen> {
       final products = await Purchases.getProducts([packId]);
       if (products.isEmpty) throw Exception('Product not found in store.');
 
-      await Purchases.purchaseStoreProduct(products.first);
-      await widget.settings.syncPurchases();
+      // Capture the immediate result, clear any dev locks, and update UI
+      final info = await Purchases.purchaseStoreProduct(products.first);
+      widget.settings.clearDebugRevoke();
+      widget.settings.updateAccessFromInfo(info);
 
       if (mounted) {
         setState(() => _isProcessingTransaction = false);
@@ -163,8 +165,10 @@ class _WordpackSelectionScreenState extends State<WordpackSelectionScreen> {
       final products = await Purchases.getProducts(['premium_unlock']);
       if (products.isEmpty) throw Exception('Product not found in store.');
 
-      await Purchases.purchaseStoreProduct(products.first);
-      await widget.settings.syncPurchases();
+      // Capture the immediate result, clear any dev locks, and update UI
+      final info = await Purchases.purchaseStoreProduct(products.first);
+      widget.settings.clearDebugRevoke();
+      widget.settings.updateAccessFromInfo(info);
 
       if (mounted) {
         setState(() => _isProcessingTransaction = false);

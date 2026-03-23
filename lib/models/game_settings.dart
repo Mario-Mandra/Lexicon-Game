@@ -14,6 +14,13 @@ class GameSettings {
   List<String> unlockedPackIds;
   bool adSessionActive;
 
+  // Debug flag to hide real purchases so you can test the "Buy" button again
+  bool _debugRevokedAccess = false;
+
+  // Your RevenueCat entitlement identifier
+  static const String _premiumEntitlement = 'Not a Studio App Studio Pro';
+  static const String _devAccessKey = 'dev_access';
+
   GameSettings({
     this.targetScore = 30,
     this.roundDurationSeconds = 60,
@@ -25,38 +32,45 @@ class GameSettings {
     this.adSessionActive = false,
   });
 
-  // Called once at app startup in main.dart
-  // Checks local dev bypass first, then syncs with RevenueCat
+  // Called once on app launch
   Future<void> initializeAccess() async {
     final prefs = await SharedPreferences.getInstance();
-    final devAccess = prefs.getBool('dev_access') ?? false;
+    final devAccess = prefs.getBool(_devAccessKey) ?? false;
 
     if (devAccess) {
-      // Dev bypass is active — skip RevenueCat entirely
       isPremium = true;
       unlockedPackIds = ['pop_culture', 'after_dark'];
       return;
     }
 
-    // No dev bypass — sync with RevenueCat normally
     await syncPurchases();
   }
 
   Future<void> syncPurchases() async {
     try {
-      CustomerInfo info = await Purchases.getCustomerInfo();
-      _updateAccessFromInfo(info);
+      final CustomerInfo info = await Purchases.getCustomerInfo();
+      updateAccessFromInfo(info);
     } catch (e) {
-      // Fails silently if offline or RevenueCat not yet configured
+      // Fails silently if offline or RevenueCat unreachable
     }
   }
 
-  void _updateAccessFromInfo(CustomerInfo info) {
-    isPremium = info.entitlements.all["premium"]?.isActive == true;
+  void updateAccessFromInfo(CustomerInfo info) {
+    if (_debugRevokedAccess) {
+      isPremium = false;
+      unlockedPackIds = [];
+      return;
+    }
 
-    List<String> unlocked = [];
-    info.entitlements.all.forEach((key, entitlement) {
-      if (entitlement.isActive && key != 'premium') {
+    // Checks BOTH the explicit entitlement AND the raw product.
+    // This ensures lifetime products work even if the entitlement link breaks.
+    isPremium = info.entitlements.active.containsKey(_premiumEntitlement) ||
+                info.allPurchasedProductIdentifiers.contains('premium_unlock');
+
+    List<String> unlocked = info.allPurchasedProductIdentifiers.toList();
+    
+    info.entitlements.active.forEach((key, entitlement) {
+      if (key != _premiumEntitlement && !unlocked.contains(key)) {
         unlocked.add(key);
       }
     });
@@ -64,20 +78,27 @@ class GameSettings {
     unlockedPackIds = unlocked;
   }
 
-  // Permanently grants full access — survives app restarts
   Future<void> grantDevAccess() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('dev_access', true);
+    await prefs.setBool(_devAccessKey, true);
+    _debugRevokedAccess = false;
     isPremium = true;
     unlockedPackIds = ['pop_culture', 'after_dark'];
   }
 
-  // Revokes dev access and clears all purchased access
   Future<void> resetAccess() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('dev_access', false);
+    await prefs.setBool(_devAccessKey, false);
+    
+    // Hides real RevenueCat purchases temporarily so you can test the UI
+    _debugRevokedAccess = true; 
+    
     isPremium = false;
     unlockedPackIds = [];
     adSessionActive = false;
+  }
+
+  void clearDebugRevoke() {
+    _debugRevokedAccess = false;
   }
 }
