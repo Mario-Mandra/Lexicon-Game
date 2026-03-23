@@ -5,6 +5,7 @@ import '../models/game_settings.dart';
 import 'packs/generic.dart';
 import 'packs/after_dark.dart';
 import 'packs/pop_culture.dart';
+import 'packs/retro.dart';
 
 class WordPack {
   final String id;
@@ -77,6 +78,15 @@ const List<WordPack> availableWordPacks = [
     localizedWords: {'en': [], 'ro': []},
     isLocked: true,
     requiresPremium: true,
+  ),
+    WordPack(
+    id: retroId,
+    title: retroTitle,
+    subtitle: retroSubtitle,
+    icon: retroIcon,
+    localizedWords: retroWords,
+    isLocked: retroIsLocked,
+    requiresPremium: retroRequiresPremium,
   ),
 ];
 
