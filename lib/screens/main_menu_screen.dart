@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/game_settings.dart';
 import 'rules_screen.dart';
 import 'game_setup_screen.dart';
@@ -16,8 +18,52 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _gatherConsent();
+  }
+
+  void _gatherConsent() {
+    final params = ConsentRequestParameters();
+    ConsentInformation.instance.requestConsentInfoUpdate(
+      params,
+      () async {
+        ConsentForm.loadAndShowConsentFormIfRequired((loadAndShowError) async {
+          // Initialize ads only after the form is resolved or if it wasn't required
+          if (await ConsentInformation.instance.canRequestAds()) {
+            _initializeAds();
+          }
+        });
+      },
+      (FormError error) {
+        // If UMP fails (e.g., no internet), it fails silently. 
+        // AdMob simply won't serve ads to EU users until consent is gathered.
+      },
+    );
+  }
+
+  void _initializeAds() async {
+    await MobileAds.instance.initialize();
+    
+    // Test device ID ensures you can safely tap ads while developing
+    RequestConfiguration adConfig = RequestConfiguration(
+      testDeviceIds: ['B13BAB7B27AAEB0B7DE5D8A53A53A649'],
+    );
+    MobileAds.instance.updateRequestConfiguration(adConfig);
+  }
+
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _launchPrivacyPolicy() async {
+    final Uri url = Uri.parse(
+        'https://doc-hosting.flycricket.io/lexicon-s-privacy-policy/d6d98cd4-d4f4-4245-aaa9-a0b82ce1fe20/privacy');
+    
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      debugPrint('Could not launch privacy policy');
+    }
   }
 
   @override
@@ -44,59 +90,65 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   shadows: [
                     Shadow(
                       color: theme.colorScheme.primary.withAlpha(150),
-                      blurRadius: 30,
+                      blurRadius: 20,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               const Text(
-                'THE PASS & PLAY PARTY GAME',
+                'THE ULTIMATE PARTY GAME',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white54,
                   letterSpacing: 4,
+                  color: Colors.white54,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const Spacer(),
-              MenuIsland(
-                title: 'HOST GAME',
-                subtitle: 'Create a new local room',
-                icon: Icons.add_circle_outline,
+              _MenuButton(
+                icon: Icons.play_arrow_rounded,
+                title: 'PLAY NOW',
+                subtitle: 'Start a new game',
                 isPrimary: true,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          GameSetupScreen(settings: widget.settings),
-                    ),
-                  ).then((_) => _refresh());
-                },
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        GameSetupScreen(settings: widget.settings),
+                  ),
+                ).then((_) => _refresh()),
               ),
               const SizedBox(height: 16),
-              MenuIsland(
-                title: 'HOW TO PLAY',
-                subtitle: 'Read the rules',
+              _MenuButton(
                 icon: Icons.menu_book_rounded,
+                title: 'HOW TO PLAY',
+                subtitle: 'Rules and instructions',
                 isPrimary: false,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => RulesScreen(
-                        settings: widget.settings,
-                        onUpdate: _refresh,
-                      ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RulesScreen(
+                      settings: widget.settings,
+                      onUpdate: _refresh,
                     ),
-                  );
-                },
+                  ),
+                ).then((_) => _refresh()),
               ),
               const Spacer(),
+              TextButton(
+                onPressed: _launchPrivacyPolicy,
+                child: const Text(
+                  'Privacy Policy',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Colors.white54,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -105,37 +157,36 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 }
 
-class MenuIsland extends StatelessWidget {
+class _MenuButton extends StatelessWidget {
+  final IconData icon;
   final String title;
   final String subtitle;
-  final IconData icon;
   final bool isPrimary;
   final VoidCallback onTap;
 
-  const MenuIsland({
-    super.key,
+  const _MenuButton({
+    required this.icon,
     required this.title,
     required this.subtitle,
-    required this.icon,
+    required this.isPrimary,
     required this.onTap,
-    this.isPrimary = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(24),
       child: Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [theme.colorScheme.surface, const Color(0xFF1A1A1A)],
-          ),
+          color: isPrimary
+              ? theme.colorScheme.primary.withAlpha(20)
+              : const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(24),
           border: isPrimary
               ? Border.all(

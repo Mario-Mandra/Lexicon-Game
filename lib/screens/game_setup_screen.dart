@@ -24,8 +24,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   RewardedAd? _rewardedAd;
   bool _isAdLoading = false;
 
-  // TODO: Replace with real ad unit ID before release
-  final String _rewardedAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
+  final String _rewardedAdUnitId = 'ca-app-pub-3836287958039986/4233855759';
 
   @override
   void initState() {
@@ -74,6 +73,7 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
   @override
   void dispose() {
     _rewardedAd?.dispose();
+    widget.settings.adSessionActive = false;
     super.dispose();
   }
 

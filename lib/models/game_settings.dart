@@ -18,7 +18,7 @@ class GameSettings {
   bool _debugRevokedAccess = false;
 
   // Your RevenueCat entitlement identifier
-  static const String _premiumEntitlement = 'Not a Studio App Studio Pro';
+  static const String _premiumEntitlement = 'premium';
   static const String _devAccessKey = 'dev_access';
 
   GameSettings({
@@ -39,7 +39,7 @@ class GameSettings {
 
     if (devAccess) {
       isPremium = true;
-      unlockedPackIds = ['pop_culture', 'after_dark'];
+      unlockedPackIds = ['pop_culture', 'after_dark' , 'retro'];
       return;
     }
 

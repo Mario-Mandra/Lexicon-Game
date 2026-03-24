@@ -1,7 +1,6 @@
 // File: lib/screens/rules_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/game_settings.dart';
 
 class RulesScreen extends StatefulWidget {
@@ -15,90 +14,12 @@ class RulesScreen extends StatefulWidget {
 }
 
 class _RulesScreenState extends State<RulesScreen> {
-  void _showCheatDialog(BuildContext context) {
-    final TextEditingController controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text(
-          'ENTER CODE',
-          style: TextStyle(color: Colors.white, letterSpacing: 2),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFFFF00FF)),
-            ),
-            hintText: 'Enter 5-digit code',
-            hintStyle: TextStyle(color: Colors.white24),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final code = controller.text.trim();
-              String message = 'Invalid Code';
-
-              if (code == '10001') {
-                widget.settings.adSessionActive = true;
-                message = 'DEBUG: Ad Session Activated.';
-              } else if (code == '10002') {
-                widget.settings.unlockedPackIds = ['pop_culture', 'after_dark'];
-                message = 'DEBUG: All Packs Purchased.';
-              } else if (code == '10003') {
-                // Permanently grants full access — persists across restarts
-                await widget.settings.grantDevAccess();
-                message = 'DEBUG: Permanent Premium Access Granted.';
-              } else if (code == '10004') {
-                // Revokes everything including the dev bypass
-                await widget.settings.resetAccess();
-                message = 'DEBUG: All Access Revoked.';
-              }
-
-              widget.onUpdate();
-              HapticFeedback.heavyImpact();
-
-              if (context.mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: const Color(0xFFFF00FF),
-                  ),
-                );
-              }
-            },
-            child: const Text(
-              'EXECUTE',
-              style: TextStyle(
-                color: Color(0xFFFF00FF),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('HOW TO PLAY', style: TextStyle(letterSpacing: 2)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.bug_report_outlined, color: Colors.white10),
-            onPressed: () => _showCheatDialog(context),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24.0),

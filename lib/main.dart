@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'models/game_settings.dart';
 import 'screens/main_menu_screen.dart';
@@ -16,12 +15,10 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  await MobileAds.instance.initialize();
-
   // Initialize RevenueCat with your real API key
-  await Purchases.setLogLevel(LogLevel.debug);
+  await Purchases.setLogLevel(LogLevel.info);
   await Purchases.configure(
-    PurchasesConfiguration("test_iQDJwcHgWSvoClmUiYAIRegVopq"),
+    PurchasesConfiguration("goog_FIAmSvcVFrFtHUFdnqvdLKFMdXV"),
   );
 
   // Restore purchases on every launch

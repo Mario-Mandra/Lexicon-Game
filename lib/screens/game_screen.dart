@@ -41,8 +41,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   RewardedAd? _rewardedAd;
   bool _isAdLoading = false;
-  // TODO: Replace with real ad unit ID before release
-  final String _rewardedAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
+  final String _rewardedAdUnitId = 'ca-app-pub-3836287958039986/4233855759';
 
   // --- Swipe state ---
   double _dragOffset = 0;
@@ -241,6 +240,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (won) {
       _timer?.cancel();
       _cardFlyController.reset();
+      widget.settings.adSessionActive = false;
       setState(() {
         _isAnimatingOut = false;
         _dragOffset = 0;

@@ -28,9 +28,7 @@ class _WordpackSelectionScreenState extends State<WordpackSelectionScreen> {
 
   RewardedAd? _rewardedAd;
   bool _isAdLoading = false;
-
-  // TODO: Replace with real ad unit ID before release
-  final String _rewardedAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
+  final String _rewardedAdUnitId = 'ca-app-pub-3836287958039986/4233855759';
 
   @override
   void initState() {
@@ -208,6 +206,38 @@ class _WordpackSelectionScreenState extends State<WordpackSelectionScreen> {
     }
   }
 
+  Future<void> _restorePurchases() async {
+    setState(() => _isProcessingTransaction = true);
+    try {
+      final CustomerInfo info = await Purchases.restorePurchases();
+      widget.settings.clearDebugRevoke();
+      widget.settings.updateAccessFromInfo(info);
+      
+      if (mounted) {
+        setState(() => _isProcessingTransaction = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Purchases successfully restored!',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessingTransaction = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not restore purchases.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _rewardedAd?.dispose();
@@ -252,6 +282,9 @@ class _WordpackSelectionScreenState extends State<WordpackSelectionScreen> {
                         (pack) => _buildPackTile(context, pack, theme, true),
                       ),
                     ],
+                    const SizedBox(height: 24),
+                    _restoreButton(theme),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -622,6 +655,27 @@ class _WordpackSelectionScreenState extends State<WordpackSelectionScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _restoreButton(ThemeData theme) {
+    return Center(
+      child: TextButton.icon(
+        onPressed: _restorePurchases,
+        icon: const Icon(Icons.history, size: 16),
+        label: const Text(
+          'RESTORE PURCHASES',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.white38,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
       ),
     );
