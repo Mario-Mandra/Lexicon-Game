@@ -79,20 +79,29 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              Text(
-                'LEXICON',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 56,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 12,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(
-                      color: theme.colorScheme.primary.withAlpha(150),
-                      blurRadius: 20,
+              SizedBox(
+                width: double.infinity,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'LEXICON',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 56,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 8,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            color: theme.colorScheme.primary.withAlpha(150),
+                            blurRadius: 20,
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),

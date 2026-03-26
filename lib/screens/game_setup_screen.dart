@@ -421,6 +421,8 @@ class _GameSetupScreenState extends State<GameSetupScreen> {
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
+                              maxLines: 1, // Add this
+                              overflow: TextOverflow.ellipsis, // Add this to fix the crash
                             ),
                           ),
                         )

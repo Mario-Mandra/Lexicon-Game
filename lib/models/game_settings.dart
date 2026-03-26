@@ -34,6 +34,15 @@ class GameSettings {
 
   // Called once on app launch
   Future<void> initializeAccess() async {
+    // TODO: REMOVE BEFORE ACTUAL PUBLIC RELEASE!!!
+    // 🚀 TEMPORARY DEV BYPASS FOR TESTERS 🚀
+    // This forces the app to give everyone premium immediately,
+    // bypassing Google and RevenueCat entirely.
+    isPremium = true;
+    unlockedPackIds = ['pop_culture', 'after_dark', 'retro'];
+    return; // Stops the rest of the function from running
+
+    /* --- ORIGINAL CODE FOR PRODUCTION ---
     final prefs = await SharedPreferences.getInstance();
     final devAccess = prefs.getBool(_devAccessKey) ?? false;
 
@@ -44,6 +53,7 @@ class GameSettings {
     }
 
     await syncPurchases();
+    */
   }
 
   Future<void> syncPurchases() async {
@@ -56,6 +66,13 @@ class GameSettings {
   }
 
   void updateAccessFromInfo(CustomerInfo info) {
+    // TODO: REMOVE BEFORE ACTUAL PUBLIC RELEASE!!!
+    // 🚀 TEMPORARY DEV BYPASS: Re-enforces premium if a sync is forced
+    isPremium = true;
+    unlockedPackIds = ['pop_culture', 'after_dark', 'retro'];
+    return; 
+    
+    /* --- ORIGINAL CODE FOR PRODUCTION ---
     if (_debugRevokedAccess) {
       isPremium = false;
       unlockedPackIds = [];
@@ -76,6 +93,7 @@ class GameSettings {
     });
 
     unlockedPackIds = unlocked;
+    */
   }
 
   Future<void> grantDevAccess() async {
